@@ -5,7 +5,6 @@ from rotary_encoder import RotaryEncoder
 import time
 import utime
 import random
-from cursor import Cursor
 
 def multiply_rgb(rgb, factor):
     return tuple(int(value * factor) for value in rgb)
@@ -160,44 +159,6 @@ def updatePixel(x, y, colorHsv):
 def show():
     for stripIndex in range(WIDTH):
         strips[stripIndex].show()
-
-def showCursor():
-
-    if cursorBlinkingOn:
-        updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_ON)
-    elif ([item for item in history if (item[0] == cursorPosX and item[1] == cursorPosY)]):
-        updatePixel(cursorPosX, cursorPosY, COLOR_ON)
-    else:
-        updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_OFF)
-
-    show()
-
-def updateCursorPos(x, y):
-    print('updateCursorPos')
-
-    global cursorPosX
-    global cursorPosY
-    global cursorBlinkingOn
-    global cursorBlinkTimestamp
-
-    itemOnPos = [item for item in history if (item[0] == x and item[1] == y)]
-    print('itemOnPos', itemOnPos)
-
-    if ([item for item in history if (item[0] == x and item[1] == y)]):
-         print('item found')
-         updatePixel(x, y, COLOR_ON)
-    else:
-        print('item not found')
-        # Turn off previous cursor pixel
-        updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_OFF)
-
-    # Force blink on
-    cursorBlinkingOn = True
-    cursorBlinkTimestamp = utime.ticks_ms()
-
-    cursorPosX = x
-    cursorPosY = y
-    showCursor()
         
 def updatePosAndShow():
     print('updatePosAndShow')
@@ -206,15 +167,6 @@ def updatePosAndShow():
         updatePixel(x, y, COLOR_ON)
 
     show()
-
-#######################################################################
-# Cursor init
-
-def updateAndShowCursor(posX, posY, colorHsv):
-    updatePixel(posX,posY,colorHsv)
-    show()
-
-cursor = Cursor(updateAndShowCursor)
 
 #######################################################################
 # Rotary encoder init
