@@ -46,17 +46,87 @@ CURSOR_BLINK_DURATION_MS = 500
 CURSOR_COLOR_ON = (10000, 255, 50)
 CURSOR_COLOR_OFF = (0, 0, 0)
 
+LEFT = 'LEFT'
+RIGHT = 'RIGHT'
+UP = 'UP'
+DOWN = 'DOWN'
+
 #######################################################################
 # Global variables
 
 cursorPosX = 0
 cursorPosY = 0
+cursorPrevPosX = cursorPosX
+cursorPrevPosY = cursorPosY
+
 cursorBlinkingOn = True
 cursorBlinkTimestamp = 0
 
-posX = 0
+#######################################################################
+# Init cursor
 
-posY = 0
+def moveCursor(direction):
+    global cursorPosX
+    global cursorPosY
+    global cursorPrevPosX
+    global cursorPrevPosY
+    
+    if direction == LEFT:
+        if cursorPosX == 0:
+            cursorPosX = WIDTH - 1
+        else:
+            cursorPosX -= 1
+    elif direction == RIGHT:
+        if cursorPosX < WIDTH - 1:
+            cursorPosX += 1
+        else:
+            cursorPosX = 0
+    elif direction == UP:
+        if cursorPosY == 0:
+            cursorPosY = HEIGHT - 1
+        else:
+            cursorPosY -= 1
+    elif direction == DOWN:
+        if cursorPosY < HEIGHT - 1:
+            cursorPosY += 1
+        else:
+            cursorPosY = 0
+
+    updateCursorPixel(cursorPrevPosX, cursorPrevPosY, False)
+
+    cursorPrevPosX = cursorPosX
+    cursorPrevPosY = cursorPosY
+
+    updateCursorPixel(cursorPosX, cursorPosY, True)
+
+    show()
+
+def clickCursor():
+    print('clickCursor', cursorPosX, cursorPosY)
+
+    if findHistoryItem(cursorPosX, cursorPosY):
+        history.remove((cursorPosX, cursorPosY))
+        updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_ON)
+    else:
+        history.append((cursorPosX, cursorPosY))
+        updatePixel(cursorPosX, cursorPosY, COLOR_ON)
+    
+    show()
+
+def updateCursorPixel(x, y, isOn):
+    if isOn:
+        updatePixel(x,y,CURSOR_COLOR_ON)
+    else:
+        if findHistoryItem(x, y):
+            updatePixel(x,y,COLOR_ON)
+        else:
+            updatePixel(x,y,CURSOR_COLOR_OFF)
+
+def findHistoryItem(x,y):
+    for item in history:
+        if item == (x, y):
+            return item
+    return None
 
 history = []
 
@@ -78,9 +148,6 @@ def updatePixel(x, y, colorHsv):
 def show():
     for stripIndex in range(WIDTH):
         strips[stripIndex].show()
-
-def addToHistory(coordinates):
-    history.append(coordinates)
 
 def showCursor():
 
@@ -137,7 +204,6 @@ def updatePosAndShow():
         x, y = history[index]
         updatePixel(x, y, COLOR_ON)
 
-
     show()
 
 #######################################################################
@@ -153,71 +219,37 @@ cursor = Cursor(updateAndShowCursor)
 # Rotary encoder init
 
 def onRotateX(clockwise):
-    global posX
-
     if clockwise == True:
-        if posX < WIDTH - 1:
-            posX += 1
-        else:
-            posX = 0
-
+        moveCursor('RIGHT')
     else:
-        if posX == 0:
-            posX = WIDTH - 1
-        else:
-            posX -= 1
-
-    updateCursorPos(posX, cursorPosY)
-    updatePosAndShow()
-
-def onClickX():
-    print('onClickX')
-    addToHistory((cursorPosX, cursorPosY))
-    updatePosAndShow()
+        moveCursor('LEFT')
 
 rotaryX = RotaryEncoder(
     Pin(PIN_ROTARY_X_CLK, Pin.IN, Pin.PULL_UP),
     Pin(PIN_ROTARY_X_DT, Pin.IN, Pin.PULL_UP),
     Pin(PIN_ROTARY_X_SW, Pin.IN, Pin.PULL_UP),
     onRotateX,
-    onClickX
+    clickCursor
 )
 
 def onRotateY(clockwise):
     global posY
 
     if clockwise == True:
-        if posY < HEIGHT - 1:
-            posY += 1
-        else:
-            posY = 0
-
+        moveCursor('DOWN')
     else:
-        if posY == 0:
-            posY = HEIGHT - 1
-        else:
-            posY -= 1
-
-    updateCursorPos(cursorPosX, posY)
-    updatePosAndShow()
-
-def onClickY():
-    print('onClickY')
-    addToHistory((cursorPosX, cursorPosY))
-    updatePosAndShow()
+        moveCursor('UP')
 
 rotaryY = RotaryEncoder(
     Pin(PIN_ROTARY_Y_CLK, Pin.IN, Pin.PULL_UP),
     Pin(PIN_ROTARY_Y_DT, Pin.IN, Pin.PULL_UP),
     Pin(PIN_ROTARY_Y_SW, Pin.IN, Pin.PULL_UP),
     onRotateY,
-    onClickY
+    clickCursor
 )
 
 #######################################################################
 # Main program
-
-t = 500
 
 updatePosAndShow()
 
@@ -225,17 +257,4 @@ while True:
     rotaryX.listenToRotation()
     rotaryY.listenToRotation()
 
-    updateCursorBlink()
-
-
-    # onRotateX(random.choice([True, False]))
-    # time.sleep_ms(20)
-    # onRotateY(random.choice([True, False]))
-    # time.sleep_ms(20)
-
-    # onRotateX(random.choice([True, False]))
-    # time.sleep_ms(t)
-    # onRotateY(True)
-    # time.sleep_ms(t)
-    # onRotateY(True)
-    # time.sleep_ms(t)
+    # updateCursorBlink()
