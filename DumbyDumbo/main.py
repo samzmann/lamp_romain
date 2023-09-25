@@ -113,6 +113,18 @@ def clickCursor():
     
     show()
 
+def updateCursorBlink():
+    global cursorBlinkingOn
+    global cursorBlinkTimestamp
+
+    now = utime.ticks_ms()
+
+    if now > cursorBlinkTimestamp + CURSOR_BLINK_DURATION_MS:
+        cursorBlinkingOn = not cursorBlinkingOn
+        cursorBlinkTimestamp = now
+        updateCursorPixel(cursorPosX, cursorPosY, cursorBlinkingOn)
+        show()
+
 def updateCursorPixel(x, y, isOn):
     if isOn:
         updatePixel(x,y,CURSOR_COLOR_ON)
@@ -186,17 +198,6 @@ def updateCursorPos(x, y):
     cursorPosX = x
     cursorPosY = y
     showCursor()
-
-def updateCursorBlink():
-    global cursorBlinkingOn
-    global cursorBlinkTimestamp
-
-    now = utime.ticks_ms()
-
-    if now > cursorBlinkTimestamp + CURSOR_BLINK_DURATION_MS:
-        cursorBlinkingOn = not cursorBlinkingOn
-        cursorBlinkTimestamp = now
-        showCursor()
         
 def updatePosAndShow():
     print('updatePosAndShow')
@@ -257,4 +258,4 @@ while True:
     rotaryX.listenToRotation()
     rotaryY.listenToRotation()
 
-    # updateCursorBlink()
+    updateCursorBlink()
