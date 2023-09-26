@@ -32,11 +32,13 @@ PIN_ROTARY_Y_SW = 10
 WIDTH = 5
 HEIGHT = 10
 
+MIN_HUE = 30000
+MAX_HUE = 65535
+
 COLOR_ON = (0,255,50)
 COLOR_OFF = (0,0,0)
 
-MIN_HUE = 30000
-MAX_HUE = 65535
+COLOR_GREEN = (20000,255,50)
 
 HISTORY_MIN_LENGTH = 1
 HISTORY_MAX_LENGTH = 10
@@ -169,6 +171,56 @@ def updatePosAndShow():
     show()
 
 #######################################################################
+# Animations
+
+def runResetAnim():
+
+    historyLength = 3
+    rowHistory = []
+
+    def doAnim():
+        row = 0
+
+        while row <= HEIGHT:
+            for i in range(WIDTH):
+
+                print('1. ', i, row)
+
+                if row != HEIGHT:
+                    updatePixel(i, row, COLOR_GREEN)
+                
+                if row > 0:
+                    for r in reversed(range(row, max(row - historyLength, 0))):
+                        print('range HEIGHT', r)
+                        if r < row:
+                            distance = row - r
+                            if distance < historyLength and rowHistory[row - distance][i]:
+                                brightnessRatio = math.floor((distance / historyLength) * 200)
+                                updatePixel(i, distance, (20000, 255, brightnessRatio))
+                            else:
+                                print('2.', i, distance)
+                                updatePixel(i, distance, COLOR_OFF)
+
+            show()
+            time.sleep_ms(100)
+            
+            print('---')
+                
+            row +=1
+
+    for i in range(HEIGHT):
+        rowHistory.append([])
+        for j in range(WIDTH):
+            rowHistory[i].append(random.choice([True, False, False]))
+
+        if i == HEIGHT - 1:
+            print('rowHistory', rowHistory)
+
+            doAnim()
+
+runResetAnim() 
+
+#######################################################################
 # Rotary encoder init
 
 def onRotateX(clockwise):
@@ -204,10 +256,10 @@ rotaryY = RotaryEncoder(
 #######################################################################
 # Main program
 
-updatePosAndShow()
+# updatePosAndShow()
 
-while True:
-    rotaryX.listenToRotation()
-    rotaryY.listenToRotation()
+# while True:
+#     rotaryX.listenToRotation()
+#     rotaryY.listenToRotation()
 
-    updateCursorBlink()
+#     updateCursorBlink()
