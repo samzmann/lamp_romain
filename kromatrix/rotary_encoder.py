@@ -1,22 +1,21 @@
+import rotaryio
+
 class RotaryEncoder():
+    def __init__(self, clkPin, dtPin, swPin, onRotate, onCLick) -> None:
 
-    def __init__(self, clkPin, dtPin, onRotate) -> None:
+        self.encoder = rotaryio.IncrementalEncoder(clkPin, dtPin, divisor=2)
+        # self.SW_PIN = digitalio.DigitalInOut(swPin)
+        
+        self.prevRotaryVal = 0
 
-        self.CLK_PIN = clkPin
-        self.prevRotaryVal = clkPin.value()
-
-        self.DT_PIN = dtPin
-
+        # self.prevButtonVal = self.SW_PIN.value
+        
+        self.onCLick = onCLick
         self.onRotate = onRotate
 
-
     def listenToRotation(self):
-        val = self.CLK_PIN.value()
-        
-        
-        if val !=self. prevRotaryVal:
-
-            isRotatingClockwise = self.DT_PIN.value() != val
-            self.onRotate(isRotatingClockwise)
-
-            self.prevRotaryVal = val
+        if self.encoder.position is not self.prevRotaryVal:
+            print(self.encoder.position)
+            isRotatingClockwise = self.encoder.position > self.prevRotaryVal
+            print('isRotatingClockwise',isRotatingClockwise)
+            self.prevRotaryVal = self.encoder.position
