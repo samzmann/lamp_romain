@@ -17,5 +17,7 @@ class RotaryEncoder():
         if self.encoder.position is not self.prevRotaryVal:
             print(self.encoder.position)
             isRotatingClockwise = self.encoder.position > self.prevRotaryVal
+            self.onRotate(isRotatingClockwise)
+            
             print('isRotatingClockwise',isRotatingClockwise)
             self.prevRotaryVal = self.encoder.position
