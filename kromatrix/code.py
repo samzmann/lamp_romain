@@ -1,102 +1,211 @@
-# SPDX-FileCopyrightText: 2021 Jeff Epler for Adafruit Industries
-#
-# SPDX-License-Identifier: MIT
-
-import random
-from adafruit_led_animation.animation.rainbowcomet import RainbowComet
-from adafruit_led_animation.animation.chase import Chase
-from adafruit_led_animation.animation.sparkle import Sparkle
 from adafruit_led_animation.helper import PixelMap
-from adafruit_led_animation.group import AnimationGroup
-from adafruit_led_animation.color import PURPLE, AMBER, JADE
-
 from neopio import NeoPIO
 import board
+import random
+import supervisor
+from rotary_encoder import RotaryEncoder
+
+#######################################################################
+# Constants
+
+WIDTH = 8
+HEIGHT = 10
 
 # Customize for your strands here
-num_strands = 12
-strand_length = 10
+num_strands_a = 6
+num_strands_b = 2
 
-pixels0 = NeoPIO(
-    board.GP10,
-    board.GP11,
-    board.GP12,
-    4 * strand_length,
-    num_strands=4,
-    auto_write=False,
-    brightness=0.18,
-)
+strand_length = HEIGHT
 
-pixels1 = NeoPIO(
+LEFT = 'LEFT'
+RIGHT = 'RIGHT'
+UP = 'UP'
+DOWN = 'DOWN'
+
+CURSOR_BLINK_DURATION_MS = 500
+
+CURSOR_COLOR_ON = (0,255,0)
+COLOR_ON = (255,0,0)
+COLOR_OFF = (0,0,0)
+
+#######################################################################
+# Global variables
+
+cursorPosX = 0
+cursorPosY = 0
+cursorPrevPosX = cursorPosX
+cursorPrevPosY = cursorPosY
+
+cursorBlinkingOn = True
+cursorBlinkTimestamp = 0
+
+#######################################################################
+# Init cursor
+
+def moveCursor(direction):
+    global cursorPosX
+    global cursorPosY
+    global cursorPrevPosX
+    global cursorPrevPosY
+    
+    if direction == LEFT:
+        if cursorPosX == 0:
+            cursorPosX = WIDTH - 1
+        else:
+            cursorPosX -= 1
+    elif direction == RIGHT:
+        if cursorPosX < WIDTH - 1:
+            cursorPosX += 1
+        else:
+            cursorPosX = 0
+    elif direction == UP:
+        if cursorPosY == 0:
+            cursorPosY = HEIGHT - 1
+        else:
+            cursorPosY -= 1
+    elif direction == DOWN:
+        if cursorPosY < HEIGHT - 1:
+            cursorPosY += 1
+        else:
+            cursorPosY = 0
+
+    updateCursorPixel(cursorPrevPosX, cursorPrevPosY, False)
+
+    cursorPrevPosX = cursorPosX
+    cursorPrevPosY = cursorPosY
+
+    updateCursorPixel(cursorPosX, cursorPosY, True)
+
+    show()
+
+def clickCursor():
+    print('clickCursor', cursorPosX, cursorPosY)
+
+    if findHistoryItem(cursorPosX, cursorPosY):
+        history.remove((cursorPosX, cursorPosY))
+        updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_ON)
+    else:
+        history.append((cursorPosX, cursorPosY))
+        updatePixel(cursorPosX, cursorPosY, COLOR_ON)
+    
+    show()
+
+def updateCursorBlink():
+    global cursorBlinkingOn
+    global cursorBlinkTimestamp
+
+    now = supervisor.ticks_ms()
+
+    if now > cursorBlinkTimestamp + CURSOR_BLINK_DURATION_MS:
+        cursorBlinkingOn = not cursorBlinkingOn
+        cursorBlinkTimestamp = now
+        updateCursorPixel(cursorPosX, cursorPosY, cursorBlinkingOn)
+        show()
+
+def updateCursorPixel(x, y, isOn):
+    if isOn:
+        updatePixel(x,y,CURSOR_COLOR_ON)
+    else:
+        if findHistoryItem(x, y):
+            updatePixel(x,y,COLOR_ON)
+        else:
+            updatePixel(x,y,COLOR_OFF)
+
+def findHistoryItem(x,y):
+    for item in history:
+        if item == (x, y):
+            return item
+    return None
+
+history = []
+
+#######################################################################
+# Init Neopixels
+
+rawPixelsA = NeoPIO(
     board.GP13,
     board.GP14,
     board.GP15,
-    8 * strand_length,
-    num_strands=8,
+    num_strands_a * strand_length,
+    num_strands=num_strands_a,
     auto_write=False,
     brightness=0.18,
 )
 
-# Make a virtual PixelMap so that each strip can be controlled independently
-strips0 = [
-    PixelMap(
-        pixels0,
-        range(i * strand_length, (i + 1) * strand_length),
-        individual_pixels=True,
-    )
-    for i in range(4)
-]
-strips1 = [
-    PixelMap(
-        pixels1,
-        range(i * strand_length, (i + 1) * strand_length),
-        individual_pixels=True,
-    )
-    for i in range(8)
-]
-
-strips = strips0 + strips1
-
-# This function makes a comet animation with slightly random settings
-def makeRainbowCometAnimation(strip):
-    speed = (1 + random.random()) * 0.02
-    length = random.randrange(18, 22)
-    bounce = random.random() > 0.5
-    offset = random.randint(0, 255)
-    return RainbowComet(
-        strip, speed=speed, tail_length=length, bounce=bounce, colorwheel_offset=offset
-    )
-
-
-def makeChaseAnimation(strip):
-    return Chase(strip, speed=0.1, size=3, spacing=6, color=AMBER)
-
-
-def makeSparkleAnimation(strip):
-    speed = (1 + random.random()) * 0.05
-    return Sparkle(strip, speed=speed, color=AMBER)
-
-
-# Make an animation for each virtual strip
-animations = [makeRainbowCometAnimation(strip) for strip in strips]
-#animations = [makeChaseAnimation(strip) for strip in strips]
-#animations = [makeSparkleAnimation(strip) for strip in strips]
-
-# animations = [
-#    makeRainbowCometAnimation(strips[0]),
-#    chase
-# ]
-
-# Put the animations into a group so that we can animate them together
-group = AnimationGroup(
-    *animations,
+rawPixelsB = NeoPIO(
+    board.GP10,
+    board.GP11,
+    board.GP12,
+    num_strands_b * strand_length,
+    num_strands=num_strands_b,
+    auto_write=False,
+    brightness=0.18,
 )
 
+strips = [
+    PixelMap(
+        rawPixelsA,
+        range(i * strand_length, (i + 1) * strand_length),
+        individual_pixels=True,
+    )
+    for i in range(num_strands_a)
+] + [
+    PixelMap(
+        rawPixelsB,
+        range(i * strand_length, (i + 1) * strand_length),
+        individual_pixels=True,
+    )
+    for i in range(num_strands_b)
+]
 
-def a():
-    print("a")
+def updatePixel(x, y, colorRgb):
+    strips[x][y] = colorRgb
 
+def show():
+    rawPixelsA.show()
+    rawPixelsB.show()
 
-# Show the animations forever
+#######################################################################
+# Rotary encoder init
+
+def onRotateX(clockwise):
+    print('onRotateX', clockwise)
+    if clockwise == True:
+        moveCursor('RIGHT')
+    else:
+        moveCursor('LEFT')
+
+rotaryX = RotaryEncoder(
+    board.GP0,
+    board.GP1,
+    board.GP2,
+    onRotateX,
+    clickCursor
+)
+
+def onRotateY(clockwise):
+    print('onRotateY', clockwise)
+
+    if clockwise == True:
+        moveCursor('DOWN')
+    else:
+        moveCursor('UP')
+
+rotaryY = RotaryEncoder(
+    board.GP3,
+    board.GP4,
+    board.GP4,
+    onRotateY,
+    clickCursor
+)
+
+######################################################################
+# Main program
+
+# updatePosAndShow()
+
 while True:
-    group.animate()
+    rotaryX.listenToRotation()
+    rotaryY.listenToRotation()
+
+    updateCursorBlink()
