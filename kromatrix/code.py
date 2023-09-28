@@ -194,7 +194,7 @@ def onRotateY(clockwise):
 rotaryY = RotaryEncoder(
     board.GP3,
     board.GP4,
-    board.GP4,
+    board.GP5,
     onRotateY,
     clickCursor
 )
