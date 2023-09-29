@@ -4,6 +4,7 @@ import board
 import random
 import supervisor
 from rotary_encoder import RotaryEncoder
+import time
 
 #######################################################################
 # Constants
@@ -82,10 +83,10 @@ def clickCursor():
     print('clickCursor', cursorPosX, cursorPosY)
 
     if findHistoryItem(cursorPosX, cursorPosY):
-        history.remove((cursorPosX, cursorPosY))
+        history[cursorPosX][cursorPosY] = COLOR_OFF
         updatePixel(cursorPosX, cursorPosY, CURSOR_COLOR_ON)
     else:
-        history.append((cursorPosX, cursorPosY))
+        history[cursorPosX][cursorPosY] = COLOR_ON
         updatePixel(cursorPosX, cursorPosY, COLOR_ON)
     
     show()
@@ -112,12 +113,10 @@ def updateCursorPixel(x, y, isOn):
             updatePixel(x,y,COLOR_OFF)
 
 def findHistoryItem(x,y):
-    for item in history:
-        if item == (x, y):
-            return item
-    return None
-
-history = []
+    item = history[x][y]
+    if item == (0,0,0):
+        return None
+    return item
 
 #######################################################################
 # Init Neopixels
@@ -158,6 +157,16 @@ strips = [
     for i in range(num_strands_b)
 ]
 
+def makeHistory():
+    h = []
+    for x in range(len(strips)):
+        h.append([])
+        for y in range(len(strips[x])):
+            h[x].append(strips[x][y])
+    return h    
+
+history = makeHistory()
+
 def updatePixel(x, y, colorRgb):
     strips[x][y] = colorRgb
 
@@ -166,10 +175,15 @@ def show():
     rawPixelsB.show()
 
 #######################################################################
+# Init Printer
+
+def printGrid():
+    print(strips)
+
+#######################################################################
 # Rotary encoder init
 
 def onRotateX(clockwise):
-    print('onRotateX', clockwise)
     if clockwise == True:
         moveCursor('RIGHT')
     else:
@@ -184,8 +198,6 @@ rotaryX = RotaryEncoder(
 )
 
 def onRotateY(clockwise):
-    print('onRotateY', clockwise)
-
     if clockwise == True:
         moveCursor('DOWN')
     else:
@@ -196,7 +208,7 @@ rotaryY = RotaryEncoder(
     board.GP4,
     board.GP5,
     onRotateY,
-    clickCursor
+    printGrid
 )
 
 ######################################################################
