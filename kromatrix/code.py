@@ -1,10 +1,21 @@
 from adafruit_led_animation.helper import PixelMap
+from adafruit_led_animation.group import AnimationGroup
+
+from adafruit_led_animation.animation.comet import Comet
+from adafruit_led_animation.animation.chase import Chase
+
+from adafruit_led_animation.color import PURPLE, AMBER, JADE
+
+
+
 from neopio import NeoPIO
 import board
 import random
 import supervisor
 from rotary_encoder import RotaryEncoder
 import time
+import supervisor
+import math
 
 #######################################################################
 # Constants
@@ -29,6 +40,8 @@ CURSOR_COLOR_ON = (0,255,0)
 COLOR_ON = (255,0,0)
 COLOR_OFF = (0,0,0)
 
+RESET_DURATION_MS = 1000
+
 #######################################################################
 # Global variables
 
@@ -39,6 +52,10 @@ cursorPrevPosY = cursorPosY
 
 cursorBlinkingOn = True
 cursorBlinkTimestamp = 0
+
+
+isResetting = False
+resetTimestamp = 0
 
 #######################################################################
 # Init cursor
@@ -157,15 +174,11 @@ strips = [
     for i in range(num_strands_b)
 ]
 
-def makeHistory():
-    h = []
-    for x in range(len(strips)):
-        h.append([])
-        for y in range(len(strips[x])):
-            h[x].append(strips[x][y])
-    return h    
+def deep_copy(lst):
+    return [list(sublist) for sublist in lst]
 
-history = makeHistory()
+historyForReset = deep_copy(strips)
+history = deep_copy(strips)
 
 def updatePixel(x, y, colorRgb):
     strips[x][y] = colorRgb
@@ -174,11 +187,78 @@ def show():
     rawPixelsA.show()
     rawPixelsB.show()
 
+def make_animation(strip):
+    length = random.randrange(math.floor(HEIGHT * 0.2), math.floor(HEIGHT * 0.6))
+    return Comet(strip, speed=RESET_DURATION_MS / 1000 / HEIGHT, color=JADE, tail_length=length, bounce=False)
+
+animations = [make_animation(strip) for strip in strips]
+chase = AnimationGroup(*animations, )
+
+def reset():
+
+    global resetTimestamp
+    resetTimestamp = supervisor.ticks_ms()
+
+    global cursorPosX
+    global cursorPosY
+    global cursorPrevPosX
+    global cursorPrevPosY
+    global cursorBlinkingOn
+    global strips
+    global history
+
+    global isResetting
+
+    cursorPosX = 0
+    cursorPosY = 0
+    cursorPrevPosX = cursorPosX
+    cursorPrevPosY = cursorPosY
+
+    cursorBlinkingOn = True
+
+    history = deep_copy(historyForReset)
+
+    isResetting = True
+
+def completeReset():
+    global isResetting
+    global animations
+    global chase
+
+
+    for strip in strips:
+        strip.fill(COLOR_OFF)
+    show()
+
+    animations = [make_animation(strip) for strip in strips]
+    chase = AnimationGroup(*animations, )
+
+    isResetting = False
+
 #######################################################################
 # Init Printer
 
+
 def printGrid():
-    print(strips)
+    print('printGrid')
+    lines = []
+    # Loop through each row of the grid
+    for row in range(len(history[0])):
+        # Create a new list to store the items in the current row
+        current_row = []
+        
+        # Loop through each column of the grid
+        for col in range(len(history)):
+            if history[col][row] == COLOR_OFF:
+                current_row.append('_')
+            else:
+                current_row.append('X')
+        
+        # Join the items in the current row into a single string and append it to the result list
+        lines.append(''.join(current_row))
+    
+    for line in lines:
+        print(line)
 
 #######################################################################
 # Rotary encoder init
@@ -208,7 +288,7 @@ rotaryY = RotaryEncoder(
     board.GP4,
     board.GP5,
     onRotateY,
-    printGrid
+    reset
 )
 
 ######################################################################
@@ -216,8 +296,17 @@ rotaryY = RotaryEncoder(
 
 # updatePosAndShow()
 
-while True:
-    rotaryX.listenToRotation()
-    rotaryY.listenToRotation()
+def checkResetComplete():
+    now = supervisor.ticks_ms()
+    if now > resetTimestamp + RESET_DURATION_MS:
+        completeReset()
 
-    updateCursorBlink()
+while True:
+    if isResetting == True:
+        chase.animate()
+        checkResetComplete()
+    else:
+        rotaryX.listenToRotation()
+        rotaryY.listenToRotation()
+        
+        updateCursorBlink()
