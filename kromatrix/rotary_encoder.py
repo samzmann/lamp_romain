@@ -17,17 +17,13 @@ class RotaryEncoder():
 
     def listenToRotation(self):
         if self.encoder.position is not self.prevRotaryVal:
-            print(self.encoder.position)
             isRotatingClockwise = self.encoder.position > self.prevRotaryVal
             self.onRotate(isRotatingClockwise)
-            
-            print('isRotatingClockwise',isRotatingClockwise)
             self.prevRotaryVal = self.encoder.position
         
         if not self.button and self.prevButtonVal is 0:
             self.prevButtonVal = 1
         if self.button and self.prevButtonVal == 1:
-            print("Button pressed.")
             self.onCLick()
 
         if not self.button.value and self.prevButtonVal is None:
