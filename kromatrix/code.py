@@ -14,18 +14,22 @@ import random
 import supervisor
 from rotary_encoder import RotaryEncoder
 import time
-import supervisor
 import math
+
+import microcontroller
 
 #######################################################################
 # Constants
 
+# WIDTH = 13 # production
+# HEIGHT = 18 # production
 WIDTH = 8
 HEIGHT = 10
 
-# Customize for your strands here
-num_strands_a = 6
-num_strands_b = 2
+# num_strands_a = 8 # production
+# num_strands_b = 5 # production
+num_strands_a = 8
+num_strands_b = 0
 
 strand_length = HEIGHT
 
@@ -59,6 +63,22 @@ resetTimestamp = 0
 
 #######################################################################
 # Init cursor
+
+def resetCursor():
+    global cursorPosX
+    global cursorPosY
+    global cursorPrevPosX
+    global cursorPrevPosY
+    global cursorBlinkingOn
+
+    cursorPosX = 0
+    cursorPosY = 0
+    # cursorPosX = math.floor(WIDTH / 2)
+    # cursorPosY = math.floor(HEIGHT / 2)
+    cursorPrevPosX = cursorPosX
+    cursorPrevPosY = cursorPosY
+
+    cursorBlinkingOn = True
 
 def moveCursor(direction):
     global cursorPosX
@@ -108,17 +128,28 @@ def clickCursor():
     
     show()
 
+def detectTicksOverflow(now, prevTimestamp):
+    if now < prevTimestamp:
+        print('timer overflow', now)
+        # microcontroller.reset()
+        supervisor.reload()
+
+
 def updateCursorBlink():
     global cursorBlinkingOn
     global cursorBlinkTimestamp
 
     now = supervisor.ticks_ms()
 
+    detectTicksOverflow(now, cursorBlinkTimestamp)
+
     if now > cursorBlinkTimestamp + CURSOR_BLINK_DURATION_MS:
         cursorBlinkingOn = not cursorBlinkingOn
         cursorBlinkTimestamp = now
         updateCursorPixel(cursorPosX, cursorPosY, cursorBlinkingOn)
         show()
+
+        print('updateCursorBlink', cursorBlinkingOn, now)
 
 def updateCursorPixel(x, y, isOn):
     if isOn:
@@ -139,24 +170,24 @@ def findHistoryItem(x,y):
 # Init Neopixels
 
 rawPixelsA = NeoPIO(
-    board.GP13,
-    board.GP14,
-    board.GP15,
+    board.GP10,
+    board.GP11,
+    board.GP12,
     num_strands_a * strand_length,
     num_strands=num_strands_a,
     auto_write=False,
     brightness=0.18,
 )
 
-rawPixelsB = NeoPIO(
-    board.GP10,
-    board.GP11,
-    board.GP12,
-    num_strands_b * strand_length,
-    num_strands=num_strands_b,
-    auto_write=False,
-    brightness=0.18,
-)
+# rawPixelsB = NeoPIO(
+#     board.GP13,
+#     board.GP14,
+#     board.GP15,
+#     num_strands_b * strand_length,
+#     num_strands=num_strands_b,
+#     auto_write=False,
+#     brightness=0.18,
+# )
 
 strips = [
     PixelMap(
@@ -165,14 +196,15 @@ strips = [
         individual_pixels=True,
     )
     for i in range(num_strands_a)
-] + [
-    PixelMap(
-        rawPixelsB,
-        range(i * strand_length, (i + 1) * strand_length),
-        individual_pixels=True,
-    )
-    for i in range(num_strands_b)
 ]
+# + [
+#     PixelMap(
+#         rawPixelsB,
+#         range(i * strand_length, (i + 1) * strand_length),
+#         individual_pixels=True,
+#     )
+#     for i in range(num_strands_b)
+# ]
 
 def deep_copy(lst):
     return [list(sublist) for sublist in lst]
@@ -185,36 +217,26 @@ def updatePixel(x, y, colorRgb):
 
 def show():
     rawPixelsA.show()
-    rawPixelsB.show()
+    # rawPixelsB.show()
 
 def make_animation(strip):
-    length = random.randrange(math.floor(HEIGHT * 0.2), math.floor(HEIGHT * 0.6))
+    length = random.randrange(math.floor(HEIGHT * 0.1), math.floor(HEIGHT * 0.6))
     return Comet(strip, speed=RESET_DURATION_MS / 1000 / HEIGHT, color=JADE, tail_length=length, bounce=False)
 
 animations = [make_animation(strip) for strip in strips]
 chase = AnimationGroup(*animations, )
 
 def reset():
+    print('reset')
 
     global resetTimestamp
     resetTimestamp = supervisor.ticks_ms()
-
-    global cursorPosX
-    global cursorPosY
-    global cursorPrevPosX
-    global cursorPrevPosY
-    global cursorBlinkingOn
     global strips
     global history
 
     global isResetting
 
-    cursorPosX = 0
-    cursorPosY = 0
-    cursorPrevPosX = cursorPosX
-    cursorPrevPosY = cursorPosY
-
-    cursorBlinkingOn = True
+    resetCursor()
 
     history = deep_copy(historyForReset)
 
@@ -240,7 +262,6 @@ def completeReset():
 
 
 def printGrid():
-    print('printGrid')
     lines = []
     # Loop through each row of the grid
     for row in range(len(history[0])):
@@ -264,29 +285,31 @@ def printGrid():
 # Rotary encoder init
 
 def onRotateX(clockwise):
+    print('onRotateX')
     if clockwise == True:
         moveCursor('RIGHT')
     else:
         moveCursor('LEFT')
 
 rotaryX = RotaryEncoder(
-    board.GP0,
-    board.GP1,
-    board.GP2,
+    board.GP16,
+    board.GP17,
+    board.GP18,
     onRotateX,
     clickCursor
 )
 
 def onRotateY(clockwise):
+    print('onRotateY')
     if clockwise == True:
         moveCursor('DOWN')
     else:
         moveCursor('UP')
 
 rotaryY = RotaryEncoder(
-    board.GP3,
-    board.GP4,
-    board.GP5,
+    board.GP19,
+    board.GP20,
+    board.GP21,
     onRotateY,
     reset
 )
@@ -294,10 +317,12 @@ rotaryY = RotaryEncoder(
 ######################################################################
 # Main program
 
-# updatePosAndShow()
+
+resetCursor()
 
 def checkResetComplete():
     now = supervisor.ticks_ms()
+    detectTicksOverflow(now, resetTimestamp)
     if now > resetTimestamp + RESET_DURATION_MS:
         completeReset()
 
