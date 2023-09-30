@@ -13,10 +13,9 @@ import board
 import random
 import supervisor
 from rotary_encoder import RotaryEncoder
+from switch import Switch
 import time
 import math
-
-import microcontroller
 
 #######################################################################
 # Constants
@@ -314,6 +313,25 @@ rotaryY = RotaryEncoder(
     reset
 )
 
+def updateRotaries():
+    rotaryX.listenToRotation()
+    rotaryY.listenToRotation()
+
+#######################################################################
+# Switch init
+
+def changeMode():
+    print('changeMode')
+
+modeSwitch = Switch(board.GP7, changeMode)
+resetSwitch = Switch(board.GP8, reset)
+printSwitch = Switch(board.GP9, printGrid)
+
+def updateSwitches():
+    modeSwitch.update()
+    resetSwitch.update()
+    printSwitch.update()
+
 ######################################################################
 # Main program
 
@@ -331,7 +349,7 @@ while True:
         chase.animate()
         checkResetComplete()
     else:
-        rotaryX.listenToRotation()
-        rotaryY.listenToRotation()
+        updateRotaries()
+        updateSwitches()
         
         updateCursorBlink()
