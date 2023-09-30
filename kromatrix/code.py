@@ -75,10 +75,10 @@ def resetCursor():
     global cursorPrevPosY
     global cursorBlinkingOn
 
-    cursorPosX = 0
-    cursorPosY = 0
-    # cursorPosX = math.floor(WIDTH / 2)
-    # cursorPosY = math.floor(HEIGHT / 2)
+    # cursorPosX = 0
+    # cursorPosY = 0
+    cursorPosX = math.floor(WIDTH / 2)
+    cursorPosY = math.floor(HEIGHT / 2)
     cursorPrevPosX = cursorPosX
     cursorPrevPosY = cursorPosY
 
@@ -115,7 +115,7 @@ def moveCursor(direction):
     if mode == MODE_DRAW:
         updateCursorDrawMode()
     if mode == MODE_COLOR_SNAKE:
-        updateCusorColorSnakeMode()
+        updateCursorColorSnakeMode()
 
 def updateCursorDrawMode():
     global cursorPrevPosX
@@ -130,10 +130,10 @@ def updateCursorDrawMode():
 
     show()
 
-SNAKE_HISTORY_MAX_LENGTH = 10
+SNAKE_HISTORY_MAX_LENGTH = 30
 snakeHistory = []
 
-def updateCusorColorSnakeMode():
+def updateCursorColorSnakeMode():
     print('updateCusorColorSnakeMode')
     snakeHistory.append((cursorPosX, cursorPosY))
 
@@ -149,14 +149,8 @@ def updateCusorColorSnakeMode():
         MAX_HUE = 180
         
         hue = (index * (MAX_HUE - MIN_HUE) / SNAKE_HISTORY_MAX_LENGTH + MIN_HUE) / 255
-        # brightness = 255 if index == 0 else (255 / index) - (255 / 2 / len(snakeHistory))
-        brightness = index * MAX_HUE / SNAKE_HISTORY_MAX_LENGTH / 255
-        
-        print('color', index, hue, brightness)
+        brightness = index * MAX_HUE / len(snakeHistory) / 255
         color = fancy.CHSV(hue, 255, brightness)
-
-        # print('color', index, color.hue, color.saturation, color.value)
-
         
         updatePixel(x, y, color.pack())
 
@@ -269,21 +263,32 @@ def make_animation(strip):
 animations = [make_animation(strip) for strip in strips]
 chase = AnimationGroup(*animations, )
 
+def generalReset():
+    global resetTimestamp
+    global isResetting
+    resetTimestamp = supervisor.ticks_ms()
+    isResetting = True
+
+
 def resetDrawMode():
     print('resetDrawMode')
-
-    global resetTimestamp
-    global strips
     global history
-    global isResetting
 
-    resetTimestamp = supervisor.ticks_ms()
+    generalReset()
 
     resetCursor()
 
     history = deep_copy(historyForReset)
 
-    isResetting = True
+def resetColorSnakeMode():
+    global snakeHistory
+
+    generalReset()
+
+    resetCursor()
+
+    snakeHistory = [(cursorPosX, cursorPosY)]
+
 
 def completeReset():
     global isResetting
@@ -299,6 +304,9 @@ def completeReset():
     chase = AnimationGroup(*animations, )
 
     isResetting = False
+
+    if mode == MODE_COLOR_SNAKE:
+        updateCursorColorSnakeMode()
 
 #######################################################################
 # Init Printer
@@ -370,13 +378,17 @@ def changeMode():
     print('changeMode')
     if mode == MODE_DRAW:
         mode = MODE_COLOR_SNAKE
+        onClickReset()
     else:
         mode = MODE_DRAW
+        onClickReset()
     print('new mode:', mode)
 
 def onClickReset():
     if mode == MODE_DRAW:
         resetDrawMode()
+    if mode == MODE_COLOR_SNAKE:
+        resetColorSnakeMode()
 
 def onClickPrint():
     if mode == MODE_DRAW:
@@ -394,9 +406,7 @@ def updateSwitches():
 ######################################################################
 # Main program
 
-
-# resetDrawMode()
-mode = MODE_COLOR_SNAKE
+onClickReset()
 
 def checkResetComplete():
     now = supervisor.ticks_ms()
@@ -409,12 +419,12 @@ def updateInputs():
     updateSwitches()
 
 while True:
-    if mode == MODE_DRAW:
-        if isResetting == True:
-            chase.animate()
-            checkResetComplete()
-        else:
+    if isResetting == True:
+        chase.animate()
+        checkResetComplete()
+    else:
+        if mode == MODE_DRAW:
             updateInputs()
             updateCursorBlink()
-    if mode == MODE_COLOR_SNAKE:
-        updateInputs()
+        if mode == MODE_COLOR_SNAKE:
+            updateInputs()
