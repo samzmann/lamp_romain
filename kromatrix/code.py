@@ -133,10 +133,25 @@ def updateCursorDrawMode():
 SNAKE_HISTORY_MAX_LENGTH = 30
 snakeHistory = []
 
-def updateCursorColorSnakeMode():
-    print('updateCusorColorSnakeMode')
-    snakeHistory.append((cursorPosX, cursorPosY))
+hueOffset = 0
+hueOffsetTimestamp = 0
+HUE_OFFSET_INCREMENT = 5
+HUE_OFFSET_INCREMENT_INTERVAL_MS = 100
 
+def updateHueOffset():
+    global hueOffset
+    global hueOffsetTimestamp
+
+    now = supervisor.ticks_ms()
+
+    detectTicksOverflow(now, hueOffsetTimestamp)
+
+    if now > hueOffsetTimestamp + HUE_OFFSET_INCREMENT_INTERVAL_MS:
+        hueOffset += HUE_OFFSET_INCREMENT
+        hueOffsetTimestamp = now
+        showColorSnake()
+
+def showColorSnake():
     if len(snakeHistory) > SNAKE_HISTORY_MAX_LENGTH:
         x,y = snakeHistory[0]
         updatePixel(x, y, COLOR_OFF)
@@ -148,13 +163,20 @@ def updateCursorColorSnakeMode():
         MIN_HUE = 20
         MAX_HUE = 180
         
-        hue = (index * (MAX_HUE - MIN_HUE) / SNAKE_HISTORY_MAX_LENGTH + MIN_HUE) / 255
+        hue = ((index * (MAX_HUE - MIN_HUE) / SNAKE_HISTORY_MAX_LENGTH + MIN_HUE) + hueOffset) / 255
         brightness = index * MAX_HUE / len(snakeHistory) / 255
         color = fancy.CHSV(hue, 255, brightness)
         
         updatePixel(x, y, color.pack())
 
     show()
+
+
+def updateCursorColorSnakeMode():
+    print('updateCusorColorSnakeMode')
+    snakeHistory.append((cursorPosX, cursorPosY))
+
+    showColorSnake()
 
 
 def clickCursor():
@@ -428,3 +450,4 @@ while True:
             updateCursorBlink()
         if mode == MODE_COLOR_SNAKE:
             updateInputs()
+            updateHueOffset()
