@@ -6,7 +6,7 @@ from adafruit_led_animation.animation.chase import Chase
 
 from adafruit_led_animation.color import PURPLE, AMBER, JADE
 
-
+import adafruit_fancyled.adafruit_fancyled as fancy
 
 from neopio import NeoPIO
 import board
@@ -37,6 +37,9 @@ RIGHT = 'RIGHT'
 UP = 'UP'
 DOWN = 'DOWN'
 
+MODE_DRAW = 'MODE_DRAW'
+MODE_COLOR_SNAKE = 'MODE_COLOR_SNAKE'
+
 CURSOR_BLINK_DURATION_MS = 500
 
 CURSOR_COLOR_ON = (0,255,0)
@@ -47,6 +50,8 @@ RESET_DURATION_MS = 1000
 
 #######################################################################
 # Global variables
+
+mode = MODE_DRAW
 
 cursorPosX = 0
 cursorPosY = 0
@@ -106,6 +111,16 @@ def moveCursor(direction):
         else:
             cursorPosY = 0
 
+    
+    if mode == MODE_DRAW:
+        updateCursorDrawMode()
+    if mode == MODE_COLOR_SNAKE:
+        updateCusorColorSnakeMode()
+
+def updateCursorDrawMode():
+    global cursorPrevPosX
+    global cursorPrevPosY
+
     updateCursorPixel(cursorPrevPosX, cursorPrevPosY, False)
 
     cursorPrevPosX = cursorPosX
@@ -114,6 +129,39 @@ def moveCursor(direction):
     updateCursorPixel(cursorPosX, cursorPosY, True)
 
     show()
+
+SNAKE_HISTORY_MAX_LENGTH = 10
+snakeHistory = []
+
+def updateCusorColorSnakeMode():
+    print('updateCusorColorSnakeMode')
+    snakeHistory.append((cursorPosX, cursorPosY))
+
+    if len(snakeHistory) > SNAKE_HISTORY_MAX_LENGTH:
+        x,y = snakeHistory[0]
+        updatePixel(x, y, COLOR_OFF)
+        snakeHistory.pop(0)
+
+    for index in range(len(snakeHistory)):
+        x, y = snakeHistory[index]
+
+        MIN_HUE = 20
+        MAX_HUE = 180
+        
+        hue = (index * (MAX_HUE - MIN_HUE) / SNAKE_HISTORY_MAX_LENGTH + MIN_HUE) / 255
+        # brightness = 255 if index == 0 else (255 / index) - (255 / 2 / len(snakeHistory))
+        brightness = index * MAX_HUE / SNAKE_HISTORY_MAX_LENGTH / 255
+        
+        print('color', index, hue, brightness)
+        color = fancy.CHSV(hue, 255, brightness)
+
+        # print('color', index, color.hue, color.saturation, color.value)
+
+        
+        updatePixel(x, y, color.pack())
+
+    show()
+
 
 def clickCursor():
     print('clickCursor', cursorPosX, cursorPosY)
@@ -130,9 +178,7 @@ def clickCursor():
 def detectTicksOverflow(now, prevTimestamp):
     if now < prevTimestamp:
         print('timer overflow', now)
-        # microcontroller.reset()
         supervisor.reload()
-
 
 def updateCursorBlink():
     global cursorBlinkingOn
@@ -147,8 +193,6 @@ def updateCursorBlink():
         cursorBlinkTimestamp = now
         updateCursorPixel(cursorPosX, cursorPosY, cursorBlinkingOn)
         show()
-
-        print('updateCursorBlink', cursorBlinkingOn, now)
 
 def updateCursorPixel(x, y, isOn):
     if isOn:
@@ -225,15 +269,15 @@ def make_animation(strip):
 animations = [make_animation(strip) for strip in strips]
 chase = AnimationGroup(*animations, )
 
-def reset():
-    print('reset')
+def resetDrawMode():
+    print('resetDrawMode')
 
     global resetTimestamp
-    resetTimestamp = supervisor.ticks_ms()
     global strips
     global history
-
     global isResetting
+
+    resetTimestamp = supervisor.ticks_ms()
 
     resetCursor()
 
@@ -283,34 +327,34 @@ def printGrid():
 #######################################################################
 # Rotary encoder init
 
+def onClickRotary():
+    if mode == MODE_DRAW:
+        clickCursor()
+
 def onRotateX(clockwise):
     print('onRotateX')
-    if clockwise == True:
-        moveCursor('RIGHT')
-    else:
-        moveCursor('LEFT')
+    direction = RIGHT if clockwise else LEFT
+    moveCursor(direction)
 
 rotaryX = RotaryEncoder(
     board.GP16,
     board.GP17,
     board.GP18,
     onRotateX,
-    clickCursor
+    onClickRotary
 )
 
 def onRotateY(clockwise):
     print('onRotateY')
-    if clockwise == True:
-        moveCursor('DOWN')
-    else:
-        moveCursor('UP')
+    direction = DOWN if clockwise else UP
+    moveCursor(direction)
 
 rotaryY = RotaryEncoder(
     board.GP19,
     board.GP20,
     board.GP21,
     onRotateY,
-    reset
+    onClickRotary
 )
 
 def updateRotaries():
@@ -321,11 +365,26 @@ def updateRotaries():
 # Switch init
 
 def changeMode():
+    global mode
+
     print('changeMode')
+    if mode == MODE_DRAW:
+        mode = MODE_COLOR_SNAKE
+    else:
+        mode = MODE_DRAW
+    print('new mode:', mode)
+
+def onClickReset():
+    if mode == MODE_DRAW:
+        resetDrawMode()
+
+def onClickPrint():
+    if mode == MODE_DRAW:
+        printGrid()
 
 modeSwitch = Switch(board.GP7, changeMode)
-resetSwitch = Switch(board.GP8, reset)
-printSwitch = Switch(board.GP9, printGrid)
+resetSwitch = Switch(board.GP8, onClickReset)
+printSwitch = Switch(board.GP9, onClickPrint)
 
 def updateSwitches():
     modeSwitch.update()
@@ -336,7 +395,8 @@ def updateSwitches():
 # Main program
 
 
-resetCursor()
+# resetDrawMode()
+mode = MODE_COLOR_SNAKE
 
 def checkResetComplete():
     now = supervisor.ticks_ms()
@@ -344,12 +404,17 @@ def checkResetComplete():
     if now > resetTimestamp + RESET_DURATION_MS:
         completeReset()
 
+def updateInputs():
+    updateRotaries()
+    updateSwitches()
+
 while True:
-    if isResetting == True:
-        chase.animate()
-        checkResetComplete()
-    else:
-        updateRotaries()
-        updateSwitches()
-        
-        updateCursorBlink()
+    if mode == MODE_DRAW:
+        if isResetting == True:
+            chase.animate()
+            checkResetComplete()
+        else:
+            updateInputs()
+            updateCursorBlink()
+    if mode == MODE_COLOR_SNAKE:
+        updateInputs()
